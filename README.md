@@ -48,6 +48,6 @@ The OSRS Predictor is a machine learning powered application designed to forecas
 ## Planned Stack
 
 • Language: Python 3.10+  
-• Libraries: scikit learn, pandas, matplotlib/seaborn, requests  
-• UI Framework: tkinter or customtkinter  
-• Deployment: Desktop application (Windows/Mac/Linux)
+• Libraries: scikit learn, pandas, matplotlib/seaborn, requests, Tensorflow
+• UI Framework: tkinter
+• Deployment: Desktop application windows
