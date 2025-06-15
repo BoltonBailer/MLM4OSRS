@@ -10,10 +10,20 @@ from tensorflow.keras.layers import Dense, Input
 from sklearn.metrics import mean_absolute_error
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
+import matplotlib.dates as mdates
 
-
+# --- API Setup ---
 API_URL = "https://prices.runescape.wiki/api/v1/osrs"
 HEADERS = {"User-Agent": "OSRS-Predictor-Demo"}
+
+# Light pastel theme
+BG_COLOR = "#f2f2f7"
+TEXT_COLOR = "#333333"
+PRIMARY = "#a0c4ff"
+SECONDARY = "#bdb2ff"
+ACCENT = "#ffc6ff"
+FONT_MAIN = ("Segoe UI", 10)
+FONT_HEADER = ("Segoe UI", 12, "bold")
 
 def fetch_item_id(item_name):
     response = requests.get(f"{API_URL}/mapping", headers=HEADERS)
@@ -70,18 +80,25 @@ class OSRSPredictorApp(tk.Tk):
         super().__init__()
         self.title("OSRS Price Predictor")
         self.geometry("850x650")
+        self.configure(bg=BG_COLOR)
+
+        style = ttk.Style()
+        style.theme_use("default")
+        style.configure("TLabel", background=BG_COLOR, foreground=TEXT_COLOR, font=FONT_HEADER)
+        style.configure("TButton", background=PRIMARY, foreground=TEXT_COLOR, font=FONT_MAIN, padding=6)
+        style.configure("TEntry", font=FONT_MAIN)
 
         self.label = ttk.Label(self, text="Enter Item Name:")
         self.label.pack(pady=10)
 
-        self.item_entry = ttk.Entry(self, width=30)
+        self.item_entry = ttk.Entry(self, width=30, font=FONT_MAIN)
         self.item_entry.pack()
 
         self.predict_button = ttk.Button(self, text="Predict", command=self.predict_price)
         self.predict_button.pack(pady=10)
 
-        self.output_text = tk.Text(self, height=10, width=80)
-        self.output_text.pack()
+        self.output_text = tk.Text(self, height=10, width=80, bg="white", fg=TEXT_COLOR, font=FONT_MAIN, insertbackground=TEXT_COLOR)
+        self.output_text.pack(pady=10)
 
         self.canvas_frame = ttk.Frame(self)
         self.canvas_frame.pack(fill=tk.BOTH, expand=True)
@@ -101,16 +118,14 @@ class OSRSPredictorApp(tk.Tk):
 
         df, model, x_scaler, y_scaler, mae = run_regression(df)
 
-        # Forecast next 3 hours
         future_forecasts = {}
-        for h in range(1, 4):  # 1h, 2h, 3h
+        for h in range(1, 4):
             future_time = df['time_num'].max() + 3600 * h
             scaled_time = x_scaler.transform([[future_time]])
             scaled_prediction = model.predict(scaled_time)
             predicted_price = y_scaler.inverse_transform(scaled_prediction)[0][0]
             future_forecasts[h] = int(predicted_price)
 
-        # Get real-time buy/sell prices
         live_url = "https://prices.runescape.wiki/api/v1/osrs/latest"
         try:
             live_response = requests.get(live_url, headers=HEADERS)
@@ -121,24 +136,30 @@ class OSRSPredictorApp(tk.Tk):
             buy_price = sell_price = None
 
         self.output_text.delete(1.0, tk.END)
-        self.output_text.insert(tk.END, f"📊 Prediction MAE: {int(mae)} GP (avg error in GP vs actual)\n")
-        self.output_text.insert(tk.END, f"📈 Predicted next-hour sell price: {future_forecasts[1]} GP\n")
+
+        self.output_text.insert(tk.END, f"model's average error: ~{int(mae)} gp\n")
+        self.output_text.insert(tk.END, f"next hour price guess: {future_forecasts[1]} gp\n\n")
 
         if buy_price and sell_price:
             est_profit = future_forecasts[1] - buy_price
-            self.output_text.insert(tk.END, f"💲 Buy now for: {buy_price} GP\n")
-            self.output_text.insert(tk.END, f"🏷️ Sell later for: {future_forecasts[1]} GP\n")
-            self.output_text.insert(tk.END, f"💰 Estimated profit: {est_profit} GP\n")
-            advice = "🔥 This flip is WORTH IT!" if est_profit > 100 else "⚠️ Low profit margin. May not be worth flipping."
-            self.output_text.insert(tk.END, advice + "\n")
-        else:
-            self.output_text.insert(tk.END, "⚠️ Could not fetch live buy/sell data.\n")
 
-        self.output_text.insert(tk.END, "\n🔮 Forecast:\n")
+            self.output_text.insert(tk.END, f"buy now: {buy_price} gp\n")
+            self.output_text.insert(tk.END, f"sell later: {future_forecasts[1]} gp\n")
+            self.output_text.insert(tk.END, f"estimated profit: {est_profit} gp\n")
+
+            if est_profit > 100:
+                self.output_text.insert(tk.END, "yo this flip looks juicy 💸\n")
+            else:
+                self.output_text.insert(tk.END, "meh, not the best margins bro\n")
+        else:
+            self.output_text.insert(tk.END, "couldn’t get live data for buy/sell price\n")
+
+        self.output_text.insert(tk.END, "\nshort-term forecast:\n")
         for hour, price in future_forecasts.items():
-            self.output_text.insert(tk.END, f"⏱️ +{hour}h → {price} GP\n")
+            self.output_text.insert(tk.END, f"in {hour}h → ~{price} gp\n")
 
         self.plot_data(df, item_name)
+
 
     def plot_data(self, df, item_name):
         for widget in self.canvas_frame.winfo_children():
@@ -147,11 +168,15 @@ class OSRSPredictorApp(tk.Tk):
         fig, ax = plt.subplots(figsize=(9, 4))
         ax.plot(df['timestamp'], df['avgHighPrice'], label='Actual')
         ax.plot(df['timestamp'], df['predicted'], label='Predicted', linestyle='--')
-        ax.set_title(f"{item_name} Price Prediction")
-        ax.set_xlabel("Time")
-        ax.set_ylabel("High Price")
+        ax.set_title(f"{item_name} Price Prediction", color=TEXT_COLOR)
+        ax.set_xlabel("Time", color=TEXT_COLOR)
+        ax.set_ylabel("High Price", color=TEXT_COLOR)
+        ax.tick_params(axis='x', colors=TEXT_COLOR)
+        ax.tick_params(axis='y', colors=TEXT_COLOR)
         ax.legend()
         ax.grid(True)
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d\n%H:%M'))
+        fig.autofmt_xdate(rotation=30)
 
         canvas = FigureCanvasTkAgg(fig, master=self.canvas_frame)
         canvas.draw()
