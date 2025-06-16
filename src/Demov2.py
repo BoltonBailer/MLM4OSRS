@@ -2,29 +2,30 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import pandas as pd
 import requests
-import tensorflow as tf
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Input
-from sklearn.metrics import mean_absolute_error
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler
-import matplotlib.dates as mdates
 
-# --- API Setup ---
-API_URL = "https://prices.runescape.wiki/api/v1/osrs"
-HEADERS = {"User-Agent": "OSRS-Predictor-Demo"}
-
-# Light pastel theme
+# ---------------------------
+# Style & Theme
+# ---------------------------
 BG_COLOR = "#f2f2f7"
 TEXT_COLOR = "#333333"
-PRIMARY = "#a0c4ff"
+BTN_COLOR = "#9c8fc9"
 SECONDARY = "#bdb2ff"
-ACCENT = "#ffc6ff"
 FONT_MAIN = ("Segoe UI", 10)
 FONT_HEADER = ("Segoe UI", 12, "bold")
 
+#api stuff
+API_URL = "https://prices.runescape.wiki/api/v1/osrs"
+HEADERS = {"User-Agent": "OSRS-Predictor-Demo"}
+
+#fetch items
 def fetch_item_id(item_name):
     response = requests.get(f"{API_URL}/mapping", headers=HEADERS)
     items = response.json()
@@ -32,7 +33,7 @@ def fetch_item_id(item_name):
         if item['name'].lower() == item_name.lower():
             return item['id']
     return None
-
+#timed data
 def fetch_time_series(item_id):
     url = f"{API_URL}/timeseries?timestep=1h&id={item_id}"
     response = requests.get(url, headers=HEADERS)
@@ -43,7 +44,7 @@ def fetch_time_series(item_id):
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
     df['time_num'] = (df['timestamp'] - df['timestamp'].min()).dt.total_seconds()
     return df
-
+#model
 def run_regression(df):
     X = df[['time_num']].values
     y = df[['avgHighPrice']].values
@@ -74,46 +75,146 @@ def run_regression(df):
     mae = mean_absolute_error(y_test_orig, y_pred_test)
 
     return df, model, x_scaler, y_scaler, mae
+#top items
+def fetch_top_items():
+    prices_url = f"{API_URL}/latest"
+    map_url = f"{API_URL}/mapping"
 
-class OSRSPredictorApp(tk.Tk):
+    prices_data = requests.get(prices_url, headers=HEADERS).json()["data"]
+    mapping_data = requests.get(map_url, headers=HEADERS).json()
+
+    item_list = []
+    for item in mapping_data:
+        item_id = str(item["id"])
+        if item_id in prices_data:
+            low = prices_data[item_id].get("low", 0)
+            high = prices_data[item_id].get("high", 0)
+            volume = prices_data[item_id].get("highPriceVolume", 0)
+            margin = high - low
+            profit = margin * volume
+
+            if margin > 0:
+                item_list.append({
+                    "Name": item["name"],
+                    "Buy": low,
+                    "Sell": high,
+                    "Margin": margin,
+                    "Volume": volume,
+                    "Profit": profit
+                })
+
+    df = pd.DataFrame(item_list)
+    df = df.sort_values(by="Profit", ascending=False).head(50)
+    return df
+
+#steam deck
+class OSRSDeckApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("OSRS Price Predictor")
-        self.geometry("850x650")
+        self.title("OSRS Deck")
+        self.geometry("750x550")
         self.configure(bg=BG_COLOR)
 
-        style = ttk.Style()
-        style.theme_use("default")
-        style.configure("TLabel", background=BG_COLOR, foreground=TEXT_COLOR, font=FONT_HEADER)
-        style.configure("TButton", background=PRIMARY, foreground=TEXT_COLOR, font=FONT_MAIN, padding=6)
-        style.configure("TEntry", font=FONT_MAIN)
+        self.main_frame = tk.Frame(self, bg=BG_COLOR)
+        self.main_frame.pack(fill="both", expand=True)
 
-        self.label = ttk.Label(self, text="Enter Item Name:")
-        self.label.pack(pady=10)
+        self.content_frame = tk.Frame(self, bg=BG_COLOR)
 
-        self.item_entry = ttk.Entry(self, width=30, font=FONT_MAIN)
-        self.item_entry.pack()
+        buttons = [
+            ("Items List", self.items_list),
+            ("Favorites", self.favorites),
+            ("Recent Trades", self.recent_trades),
+            ("Futures", self.futures),
+            ("Price Watch", self.price_watch),
+            ("Alerts", self.alerts),
+        ]
 
-        self.predict_button = ttk.Button(self, text="Predict", command=self.predict_price)
-        self.predict_button.pack(pady=10)
+        grid_wrapper = tk.Frame(self.main_frame, bg=BG_COLOR)
+        grid_wrapper.pack(expand=True)
 
-        self.output_text = tk.Text(self, height=10, width=80, bg="white", fg=TEXT_COLOR, font=FONT_MAIN, insertbackground=TEXT_COLOR)
+        for i, (label, command) in enumerate(buttons):
+            btn = tk.Button(
+                grid_wrapper,
+                text=label,
+                width=15,
+                height=6,
+                bg=BTN_COLOR,
+                fg="white",
+                font=FONT_MAIN,
+                relief="raised",
+                bd=3,
+                command=command
+            )
+            btn.grid(row=i // 3, column=i % 3, padx=10, pady=10)
+
+    def show_main_menu(self):
+        self.content_frame.pack_forget()
+        self.main_frame.pack(fill="both", expand=True)
+
+    def items_list(self):
+        df = fetch_top_items()
+
+        self.main_frame.pack_forget()
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+        self.content_frame.pack(fill="both", expand=True)
+
+        label = tk.Label(self.content_frame, text="Top 50 Items", font=FONT_HEADER, bg=BG_COLOR)
+        label.pack(pady=10)
+
+        back_btn = tk.Button(
+            self.content_frame, text="← Back", bg=SECONDARY, fg="white", font=FONT_MAIN,
+            command=self.show_main_menu
+        )
+        back_btn.pack(pady=5)
+
+        text = tk.Text(self.content_frame, wrap="none", font=("Courier", 9), bg="white", fg="black")
+        text.pack(expand=True, fill="both", padx=10, pady=10)
+        text.insert("end", df.to_string(index=False))
+
+    def futures(self):
+        self.main_frame.pack_forget()
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+        self.content_frame.pack(fill="both", expand=True)
+
+        label = tk.Label(self.content_frame, text="Futures Predictor", font=FONT_HEADER, bg=BG_COLOR)
+        label.pack(pady=10)
+
+        back_btn = tk.Button(
+            self.content_frame, text="← Back", bg=SECONDARY, fg="white", font=FONT_MAIN,
+            command=self.show_main_menu
+        )
+        back_btn.pack()
+
+        self.item_entry = ttk.Entry(self.content_frame, width=30, font=FONT_MAIN)
+        self.item_entry.pack(pady=10)
+
+        predict_btn = tk.Button(
+            self.content_frame, text="Predict", bg=BTN_COLOR, fg="white", font=FONT_MAIN,
+            command=self.predict_price
+        )
+        predict_btn.pack(pady=5)
+
+        self.output_text = tk.Text(self.content_frame, height=10, width=80, bg="white", fg="black", font=FONT_MAIN)
         self.output_text.pack(pady=10)
 
-        self.canvas_frame = ttk.Frame(self)
-        self.canvas_frame.pack(fill=tk.BOTH, expand=True)
+        self.canvas_frame = tk.Frame(self.content_frame, bg=BG_COLOR)
+        self.canvas_frame.pack(fill="both", expand=True)
 
     def predict_price(self):
         item_name = self.item_entry.get().strip()
         item_id = fetch_item_id(item_name)
 
         if not item_id:
-            messagebox.showerror("Error", "Item not found.")
+            self.output_text.delete(1.0, tk.END)
+            self.output_text.insert(tk.END, "❌ Item not found.\n")
             return
 
         df = fetch_time_series(item_id)
         if df is None or df.empty:
-            messagebox.showerror("Error", "Price data unavailable.")
+            self.output_text.delete(1.0, tk.END)
+            self.output_text.insert(tk.END, "❌ Price data unavailable.\n")
             return
 
         df, model, x_scaler, y_scaler, mae = run_regression(df)
@@ -126,8 +227,8 @@ class OSRSPredictorApp(tk.Tk):
             predicted_price = y_scaler.inverse_transform(scaled_prediction)[0][0]
             future_forecasts[h] = int(predicted_price)
 
-        live_url = "https://prices.runescape.wiki/api/v1/osrs/latest"
         try:
+            live_url = f"{API_URL}/latest"
             live_response = requests.get(live_url, headers=HEADERS)
             live_data = live_response.json().get("data", {}).get(str(item_id), {})
             buy_price = live_data.get("high")
@@ -136,38 +237,35 @@ class OSRSPredictorApp(tk.Tk):
             buy_price = sell_price = None
 
         self.output_text.delete(1.0, tk.END)
-
-        self.output_text.insert(tk.END, f"model's average error: ~{int(mae)} gp\n")
-        self.output_text.insert(tk.END, f"next hour price guess: {future_forecasts[1]} gp\n\n")
+        self.output_text.insert(tk.END, f"📉 Model MAE: ~{int(mae)} gp\n")
+        self.output_text.insert(tk.END, f"💡 Next hour price guess: {future_forecasts[1]} gp\n\n")
 
         if buy_price and sell_price:
             est_profit = future_forecasts[1] - buy_price
-
-            self.output_text.insert(tk.END, f"buy now: {buy_price} gp\n")
-            self.output_text.insert(tk.END, f"sell later: {future_forecasts[1]} gp\n")
-            self.output_text.insert(tk.END, f"estimated profit: {est_profit} gp\n")
+            self.output_text.insert(tk.END, f"🛒 Buy now: {buy_price} gp\n")
+            self.output_text.insert(tk.END, f"💰 Sell later: {future_forecasts[1]} gp\n")
+            self.output_text.insert(tk.END, f"📈 Est. profit: {est_profit} gp\n")
 
             if est_profit > 100:
-                self.output_text.insert(tk.END, "yo this flip looks juicy 💸\n")
+                self.output_text.insert(tk.END, "\n🔥 This flip looks juicy!\n")
             else:
-                self.output_text.insert(tk.END, "meh, not the best margins bro\n")
+                self.output_text.insert(tk.END, "\n😐 Not the best margins.\n")
         else:
-            self.output_text.insert(tk.END, "couldn’t get live data for buy/sell price\n")
+            self.output_text.insert(tk.END, "\n⚠️ Couldn’t fetch live buy/sell data.\n")
 
-        self.output_text.insert(tk.END, "\nshort-term forecast:\n")
+        self.output_text.insert(tk.END, "\n📊 Short-term forecast:\n")
         for hour, price in future_forecasts.items():
-            self.output_text.insert(tk.END, f"in {hour}h → ~{price} gp\n")
+            self.output_text.insert(tk.END, f"⏱ In {hour}h → ~{price} gp\n")
 
         self.plot_data(df, item_name)
-
 
     def plot_data(self, df, item_name):
         for widget in self.canvas_frame.winfo_children():
             widget.destroy()
 
         fig, ax = plt.subplots(figsize=(9, 4))
-        ax.plot(df['timestamp'], df['avgHighPrice'], label='Actual')
-        ax.plot(df['timestamp'], df['predicted'], label='Predicted', linestyle='--')
+        ax.plot(df['timestamp'], df['avgHighPrice'], label='Actual', linewidth=1.5)
+        ax.plot(df['timestamp'], df['predicted'], label='Predicted', linestyle='--', linewidth=1.5)
         ax.set_title(f"{item_name} Price Prediction", color=TEXT_COLOR)
         ax.set_xlabel("Time", color=TEXT_COLOR)
         ax.set_ylabel("High Price", color=TEXT_COLOR)
@@ -182,6 +280,19 @@ class OSRSPredictorApp(tk.Tk):
         canvas.draw()
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
+    def favorites(self):
+        print("demo test")
+
+    def recent_trades(self):
+        print("demo test")
+
+    def price_watch(self):
+        print("demo test")
+
+    def alerts(self):
+        print("demo test")
+
+
 if __name__ == "__main__":
-    app = OSRSPredictorApp()
+    app = OSRSDeckApp()
     app.mainloop()
