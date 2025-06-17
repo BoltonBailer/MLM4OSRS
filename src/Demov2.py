@@ -280,10 +280,60 @@ class OSRSDeckApp(tk.Tk):
         canvas.draw()
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
-    def favorites(self):
-        print("demo test")
 
     def recent_trades(self):
+        self.main_frame.pack_forget()
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+        self.content_frame.pack(fill="both", expand=True)
+
+        label = tk.Label(self.content_frame, text="Recent Trades", font=FONT_HEADER, bg=BG_COLOR)
+        label.pack(pady=10)
+
+        back_btn = tk.Button(
+            self.content_frame, text="← Back", bg=SECONDARY, fg="white", font=FONT_MAIN,
+            command=self.show_main_menu
+        )
+        back_btn.pack(pady=5)
+
+        output = tk.Text(self.content_frame, height=20, width=70, font=FONT_MAIN, bg="white", fg="black")
+        output.pack(pady=10, padx=10)
+
+        items_to_check = ["Runite bar", "Dragon dagger", "Zulrah's scales", "Amulet of glory", "Shark"]
+
+        for item in items_to_check:
+            item_id = fetch_item_id(item)
+            if not item_id:
+                output.insert(tk.END, f"{item}: not found\n")
+                continue
+
+            df = fetch_time_series(item_id)
+            if df is None or df.empty:
+                output.insert(tk.END, f"{item}: no price data\n")
+                continue
+
+            try:
+                df, model, x_scaler, y_scaler, _ = run_regression(df)
+                future_time = df['time_num'].max() + 3600
+                scaled_time = x_scaler.transform([[future_time]])
+                future_price = int(y_scaler.inverse_transform(model.predict(scaled_time))[0][0])
+            except:
+                future_price = "n/a"
+
+            # Live prices
+            try:
+                live = requests.get(f"{API_URL}/latest", headers=HEADERS).json()
+                live_data = live["data"].get(str(item_id), {})
+                buy_price = live_data.get("high", "?")
+                sell_price = live_data.get("low", "?")
+            except:
+                buy_price = sell_price = "?"
+
+            # Add to output
+            line = f"{item}: Buy {buy_price} | Sell {sell_price} | +1hr: {future_price} gp\n"
+            output.insert(tk.END, line)
+            
+    def favorites(self):
         print("demo test")
 
     def price_watch(self):
