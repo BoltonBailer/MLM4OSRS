@@ -104,11 +104,12 @@ def fetch_top_items():
                 })
 
     df = pd.DataFrame(item_list)
-    df = df.sort_values(by="Profit", ascending=False).head(50)
+    df = df.sort_values(by="Profit", ascending=False).head(15)
     return df
 
 #steam deck
 class OSRSDeckApp(tk.Tk):
+    
     def __init__(self):
         super().__init__()
         self.title("OSRS Deck")
@@ -125,8 +126,8 @@ class OSRSDeckApp(tk.Tk):
             ("Favorites", self.favorites),
             ("Recent Trades", self.recent_trades),
             ("Futures", self.futures),
-            ("Price Watch", self.price_watch),
-            ("Alerts", self.alerts),
+            ("test button", self.price_watch),
+            ("Discord hook", self.alerts),
         ]
 
         grid_wrapper = tk.Frame(self.main_frame, bg=BG_COLOR)
@@ -146,6 +147,36 @@ class OSRSDeckApp(tk.Tk):
                 command=command
             )
             btn.grid(row=i // 3, column=i % 3, padx=10, pady=10)
+
+    def add_favorite_item(self):
+            item = self.fav_entry.get().strip()
+            if item and item not in self.favorite_items:
+                self.favorite_items.append(item)
+                self.render_favorite_items()
+                self.fav_entry.delete(0, tk.END)
+
+    def render_favorite_items(self):
+            #clear it
+            for widget in self.fav_list_frame.winfo_children():
+                widget.destroy()
+
+            for item in self.favorite_items:
+                btn = tk.Button(
+                    self.fav_list_frame,
+                    text=item,
+                    font=FONT_MAIN,
+                    bg=SECONDARY,
+                    fg="white",
+                    relief="groove",
+                    command=lambda i=item: self.launch_prediction_from_fav(i)
+                )
+                btn.pack(pady=3, padx=5, fill="x")
+                
+    def launch_prediction_from_fav(self, item_name):
+            self.futures()
+            self.item_entry.delete(0, tk.END)
+            self.item_entry.insert(0, item_name)
+            self.predict_price()
 
     def show_main_menu(self):
         self.content_frame.pack_forget()
@@ -280,7 +311,6 @@ class OSRSDeckApp(tk.Tk):
         canvas.draw()
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
-
     def recent_trades(self):
         self.main_frame.pack_forget()
         for widget in self.content_frame.winfo_children():
@@ -332,15 +362,108 @@ class OSRSDeckApp(tk.Tk):
             # Add to output
             line = f"{item}: Buy {buy_price} | Sell {sell_price} | +1hr: {future_price} gp\n"
             output.insert(tk.END, line)
-            
+
     def favorites(self):
-        print("demo test")
+        self.main_frame.pack_forget()
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+        self.content_frame.pack(fill="both", expand=True)
+
+        label = tk.Label(self.content_frame, text="Favorites", font=FONT_HEADER, bg=BG_COLOR)
+        label.pack(pady=10)
+
+        back_btn = tk.Button(
+            self.content_frame, text="← Back", bg=SECONDARY, fg="white", font=FONT_MAIN,
+            command=self.show_main_menu
+        )
+        back_btn.pack(pady=5)
+
+        #box
+        tk.Label(self.content_frame, text="Add Item to Favorites:", font=FONT_MAIN, bg=BG_COLOR).pack(pady=(10, 5))
+        self.fav_entry = ttk.Entry(self.content_frame, width=30)
+        self.fav_entry.pack()
+
+        add_btn = tk.Button(
+            self.content_frame,
+            text="Add",
+            bg=BTN_COLOR,
+            fg="white",
+            font=FONT_MAIN,
+            command=self.add_favorite_item
+        )
+        add_btn.pack(pady=5)
+
+        
+        self.fav_list_frame = tk.Frame(self.content_frame, bg=BG_COLOR)
+        self.fav_list_frame.pack(pady=10)
+
+        #keep items in
+        self.favorite_items = []
 
     def price_watch(self):
         print("demo test")
 
     def alerts(self):
-        print("demo test")
+        self.main_frame.pack_forget()
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+        self.content_frame.pack(fill="both", expand=True)
+
+        label = tk.Label(self.content_frame, text="Price Alerts", font=FONT_HEADER, bg=BG_COLOR)
+        label.pack(pady=10)
+
+        back_btn = tk.Button(
+            self.content_frame, text="← Back", bg=SECONDARY, fg="white", font=FONT_MAIN,
+            command=self.show_main_menu
+        )
+        back_btn.pack(pady=5)
+
+        # webhook bar
+        tk.Label(self.content_frame, text="Enter Discord Webhook URL:", bg=BG_COLOR, font=FONT_MAIN).pack(pady=(20, 5))
+        self.webhook_var = tk.StringVar()
+        self.webhook_entry = ttk.Entry(self.content_frame, textvariable=self.webhook_var, width=60)
+        self.webhook_entry.pack()
+
+        # toggle
+        self.alerts_enabled = tk.BooleanVar(value=False)
+
+        def toggle_alerts():
+            state = self.alerts_enabled.get()
+            if state:
+                status_label.config(text=" Alerts Enabled", fg="green")
+            else:
+                status_label.config(text=" Alerts Disabled", fg="red")
+        toggle_btn = tk.Checkbutton(
+            self.content_frame,
+            text="Enable Alerts",
+            variable=self.alerts_enabled,
+            onvalue=True,
+            offvalue=False,
+            font=FONT_MAIN,
+            bg=BG_COLOR,
+            command=toggle_alerts
+        )
+        toggle_btn.pack(pady=10)
+
+        status_label = tk.Label(self.content_frame, text=" Alerts Disabled", bg=BG_COLOR, fg="red", font=FONT_MAIN)
+        status_label.pack()
+
+        def save_alert_settings():
+            url = self.webhook_var.get()
+            enabled = self.alerts_enabled.get()
+            print(f"Saved Webhook: {url}")
+            print(f"Alerts {'ON' if enabled else 'OFF'}")
+        save_btn = tk.Button(
+            self.content_frame,
+            text="Save Settings",
+            bg=BTN_COLOR,
+            fg="white",
+            font=FONT_MAIN,
+            command=save_alert_settings
+        )
+        save_btn.pack(pady=15)
+
+
 
 
 if __name__ == "__main__":
