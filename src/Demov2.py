@@ -10,10 +10,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Input
+from tabulate import tabulate
 
-# ---------------------------
-# Style & Theme
-# ---------------------------
+
+
 BG_COLOR = "#f2f2f7"
 TEXT_COLOR = "#333333"
 BTN_COLOR = "#9c8fc9"
@@ -43,6 +43,8 @@ def fetch_time_series(item_id):
     df = pd.DataFrame(data)
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
     df['time_num'] = (df['timestamp'] - df['timestamp'].min()).dt.total_seconds()
+ 
+    df = df.dropna(subset=['avgHighPrice'])
     return df
 #model
 def run_regression(df):
@@ -78,22 +80,25 @@ def run_regression(df):
 #top items
 def fetch_top_items():
     prices_url = f"{API_URL}/latest"
+    volume_url = f"{API_URL}/volumes"
     map_url = f"{API_URL}/mapping"
 
     prices_data = requests.get(prices_url, headers=HEADERS).json()["data"]
+    volumes_data = requests.get(volume_url, headers=HEADERS).json()["data"]
     mapping_data = requests.get(map_url, headers=HEADERS).json()
 
     item_list = []
     for item in mapping_data:
         item_id = str(item["id"])
-        if item_id in prices_data:
+        if item_id in prices_data and item_id in volumes_data:
             low = prices_data[item_id].get("low", 0)
             high = prices_data[item_id].get("high", 0)
-            volume = prices_data[item_id].get("highPriceVolume", 0)
             margin = high - low
+
+            volume = volumes_data.get(item_id, 0)  # just an int now!
             profit = margin * volume
 
-            if margin > 0:
+            if margin > 0 and volume > 0:
                 item_list.append({
                     "Name": item["name"],
                     "Buy": low,
@@ -105,7 +110,19 @@ def fetch_top_items():
 
     df = pd.DataFrame(item_list)
     df = df.sort_values(by="Profit", ascending=False).head(15)
+
+    # Format large numbers with commas
+    df["Buy"] = df["Buy"].map("{:,}".format)
+    df["Sell"] = df["Sell"].map("{:,}".format)
+    df["Margin"] = df["Margin"].map("{:,}".format)
+    df["Volume"] = df["Volume"].map("{:,}".format)
+    df["Profit"] = df["Profit"].map("{:,}".format)
+
     return df
+
+    return df
+
+
 
 #steam deck
 class OSRSDeckApp(tk.Tk):
@@ -113,7 +130,7 @@ class OSRSDeckApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("OSRS Deck")
-        self.geometry("750x550")
+        self.geometry("900x700")
         self.configure(bg=BG_COLOR)
 
         self.main_frame = tk.Frame(self, bg=BG_COLOR)
@@ -122,7 +139,7 @@ class OSRSDeckApp(tk.Tk):
         self.content_frame = tk.Frame(self, bg=BG_COLOR)
 
         buttons = [
-            ("Items List", self.items_list),
+            ("Top Grossing", self.items_list),
             ("Favorites", self.favorites),
             ("Recent Trades", self.recent_trades),
             ("Futures", self.futures),
@@ -149,11 +166,19 @@ class OSRSDeckApp(tk.Tk):
             btn.grid(row=i // 3, column=i % 3, padx=10, pady=10)
 
     def add_favorite_item(self):
-            item = self.fav_entry.get().strip()
-            if item and item not in self.favorite_items:
-                self.favorite_items.append(item)
-                self.render_favorite_items()
-                self.fav_entry.delete(0, tk.END)
+        item = self.fav_entry.get().strip()
+        if not item:
+            return
+
+        item_id = fetch_item_id(item)
+        if not item_id:
+            messagebox.showerror("Item Not Found", f"'{item}' is not a valid OSRS item.")
+            return
+
+        if item not in self.favorite_items:
+            self.favorite_items.append(item)
+            self.render_favorite_items()
+        self.fav_entry.delete(0, tk.END)
 
     def render_favorite_items(self):
             #clear it
@@ -190,7 +215,7 @@ class OSRSDeckApp(tk.Tk):
             widget.destroy()
         self.content_frame.pack(fill="both", expand=True)
 
-        label = tk.Label(self.content_frame, text="Top 50 Items", font=FONT_HEADER, bg=BG_COLOR)
+        label = tk.Label(self.content_frame, text="Top 15 Items", font=FONT_HEADER, bg=BG_COLOR)
         label.pack(pady=10)
 
         back_btn = tk.Button(
@@ -201,7 +226,8 @@ class OSRSDeckApp(tk.Tk):
 
         text = tk.Text(self.content_frame, wrap="none", font=("Courier", 9), bg="white", fg="black")
         text.pack(expand=True, fill="both", padx=10, pady=10)
-        text.insert("end", df.to_string(index=False))
+        pretty_table = tabulate(df, headers="keys", tablefmt="plain", showindex=False)
+        text.insert("end", pretty_table)
 
     def futures(self):
         self.main_frame.pack_forget()
@@ -268,23 +294,23 @@ class OSRSDeckApp(tk.Tk):
             buy_price = sell_price = None
 
         self.output_text.delete(1.0, tk.END)
-        self.output_text.insert(tk.END, f"📉 Model MAE: ~{int(mae)} gp\n")
-        self.output_text.insert(tk.END, f"💡 Next hour price guess: {future_forecasts[1]} gp\n\n")
+        self.output_text.insert(tk.END, f"Model MAE: ~{int(mae):,} gp\n")
+        self.output_text.insert(tk.END, f"Next hour price guess: {future_forecasts[1]:,} gp\n\n")
 
         if buy_price and sell_price:
             est_profit = future_forecasts[1] - buy_price
-            self.output_text.insert(tk.END, f"🛒 Buy now: {buy_price} gp\n")
-            self.output_text.insert(tk.END, f"💰 Sell later: {future_forecasts[1]} gp\n")
-            self.output_text.insert(tk.END, f"📈 Est. profit: {est_profit} gp\n")
+            self.output_text.insert(tk.END, f"Buy now: {buy_price:,} gp\n")
+            self.output_text.insert(tk.END, f"Sell later: {future_forecasts[1]:,} gp\n")
+            self.output_text.insert(tk.END, f"Est. profit: {est_profit:,} gp\n")
 
             if est_profit > 100:
-                self.output_text.insert(tk.END, "\n🔥 This flip looks juicy!\n")
+                self.output_text.insert(tk.END, "\nThis flip looks juicy!\n")
             else:
-                self.output_text.insert(tk.END, "\n😐 Not the best margins.\n")
+                self.output_text.insert(tk.END, "\nNot the best margins.\n")
         else:
             self.output_text.insert(tk.END, "\n⚠️ Couldn’t fetch live buy/sell data.\n")
 
-        self.output_text.insert(tk.END, "\n📊 Short-term forecast:\n")
+        self.output_text.insert(tk.END, "\nShort-term forecast:\n")
         for hour, price in future_forecasts.items():
             self.output_text.insert(tk.END, f"⏱ In {hour}h → ~{price} gp\n")
 
@@ -382,6 +408,8 @@ class OSRSDeckApp(tk.Tk):
         tk.Label(self.content_frame, text="Add Item to Favorites:", font=FONT_MAIN, bg=BG_COLOR).pack(pady=(10, 5))
         self.fav_entry = ttk.Entry(self.content_frame, width=30)
         self.fav_entry.pack()
+        self.fav_entry.bind("<Return>", lambda event: self.add_favorite_item())
+
 
         add_btn = tk.Button(
             self.content_frame,
