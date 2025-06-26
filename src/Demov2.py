@@ -11,6 +11,9 @@ from sklearn.metrics import mean_absolute_error
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Input
 from tabulate import tabulate
+import json
+import os
+
 
 
 
@@ -132,6 +135,11 @@ class OSRSDeckApp(tk.Tk):
         self.configure(bg=BG_COLOR)
         self.all_item_names = []
         self.fetch_item_names()
+        self.fav_file = "favorites.json"
+        self.trade_file = "trades.json"
+        self.favorite_items = self.load_favorites()
+        self.trade_history = self.load_trades()
+
 
 
         self.main_frame = tk.Frame(self, bg=BG_COLOR)
@@ -185,6 +193,7 @@ class OSRSDeckApp(tk.Tk):
 
         if item not in self.favorite_items:
             self.favorite_items.append(item)
+            self.save_favorites()
             self.render_favorite_items()
         self.fav_entry.delete(0, tk.END)
 
@@ -395,6 +404,7 @@ class OSRSDeckApp(tk.Tk):
                 sell = int(sell_entry.get())
                 profit = sell - buy
                 self.trade_history.append((item, buy, sell, profit))
+                self.save_trades()
                 update_output()
                 item_entry.delete(0, tk.END)
                 buy_entry.delete(0, tk.END)
@@ -414,8 +424,9 @@ class OSRSDeckApp(tk.Tk):
             for item, buy, sell, profit in self.trade_history:
                 output.insert(tk.END, f"{item} | Bought for {buy:,} | Sold for {sell:,} | Profit: {profit:,} gp\n")
             output.insert(tk.END, f"\nTotal Profit: {total_profit:,} gp")
-
         
+        update_output()
+
         back_btn = tk.Button(
             self.content_frame, text="← Back", bg=SECONDARY, fg="white", font=FONT_MAIN,
             command=self.show_main_menu
@@ -459,7 +470,7 @@ class OSRSDeckApp(tk.Tk):
             self.fav_list_frame.pack(pady=10)
 
             #keep items in
-            self.favorite_items = []
+            self.render_favorite_items() 
     #bttn 5
     def settings_tile(self):
         print("demo test")
@@ -536,6 +547,26 @@ class OSRSDeckApp(tk.Tk):
         selected = self.suggestion_box.get(tk.ACTIVE)
         self.item_entry_var.set(selected)
         self.suggestion_box.delete(0, tk.END)
+
+    def load_favorites(self):
+        if os.path.exists(self.fav_file):
+            with open(self.fav_file, "r") as f:
+                return json.load(f)
+        return []
+
+    def save_favorites(self):
+        with open(self.fav_file, "w") as f:
+            json.dump(self.favorite_items, f)
+
+    def load_trades(self):
+        if os.path.exists(self.trade_file):
+            with open(self.trade_file, "r") as f:
+                return json.load(f)
+        return []
+
+    def save_trades(self):
+        with open(self.trade_file, "w") as f:
+            json.dump(self.trade_history, f)
 
 
 
