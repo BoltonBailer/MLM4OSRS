@@ -132,7 +132,6 @@ class OSRSDeckApp(tk.Tk):
         self.configure(bg=BG_COLOR)
         self.view_stack = []
 
-
         self.main_frame = tk.Frame(self, bg=BG_COLOR)
         self.main_frame.pack(fill="both", expand=True)
 
@@ -151,19 +150,26 @@ class OSRSDeckApp(tk.Tk):
         grid_wrapper.pack(expand=True)
 
         for i, (label, command) in enumerate(buttons):
+            wrapper = tk.Frame(grid_wrapper, bg="#d0cbe9", bd=0)  # soft shadow background
+            wrapper.grid(row=i // 3, column=i % 3, padx=15, pady=15)
+
             btn = tk.Button(
-                grid_wrapper,
+                wrapper,
                 text=label,
-                width=15,
-                height=6,
+                width=18,
+                height=3,
                 bg=BTN_COLOR,
                 fg="white",
                 font=FONT_MAIN,
-                relief="raised",
-                bd=3,
+                bd=0,
+                relief="flat",
+                highlightthickness=0,
+                activebackground="#a99bde",
+                cursor="hand2",
                 command=command
             )
-            btn.grid(row=i // 3, column=i % 3, padx=10, pady=10)
+            btn.pack(padx=2, pady=2)
+
 
     def add_favorite_item(self):
         item = self.fav_entry.get().strip()
