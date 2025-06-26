@@ -14,7 +14,7 @@ from tabulate import tabulate
 
 
 
-BG_COLOR = "#f2f2f7"
+BG_COLOR = "#ffffff"
 TEXT_COLOR = "#333333"
 BTN_COLOR = "#9c8fc9"
 SECONDARY = "#bdb2ff"
@@ -120,8 +120,6 @@ def fetch_top_items():
 
     return df
 
-    return df
-
 
 
 #steam deck
@@ -132,6 +130,8 @@ class OSRSDeckApp(tk.Tk):
         self.title("OSRS Deck")
         self.geometry("900x700")
         self.configure(bg=BG_COLOR)
+        self.view_stack = []
+
 
         self.main_frame = tk.Frame(self, bg=BG_COLOR)
         self.main_frame.pack(fill="both", expand=True)
@@ -142,8 +142,8 @@ class OSRSDeckApp(tk.Tk):
             ("Top Grossing", self.items_list),
             ("Favorites", self.favorites),
             ("Recent Trades", self.recent_trades),
-            ("Futures", self.futures),
-            ("test button", self.price_watch),
+            ("Item Predict", self.futures),
+            ("Settings", self.price_watch),
             ("Discord hook", self.alerts),
         ]
 
@@ -343,51 +343,60 @@ class OSRSDeckApp(tk.Tk):
             widget.destroy()
         self.content_frame.pack(fill="both", expand=True)
 
+        self.trade_history = getattr(self, "trade_history", [])
+
         label = tk.Label(self.content_frame, text="Recent Trades", font=FONT_HEADER, bg=BG_COLOR)
         label.pack(pady=10)
 
+        # Input Fields
+        entry_frame = tk.Frame(self.content_frame, bg=BG_COLOR)
+        entry_frame.pack(pady=5)
+
+        tk.Label(entry_frame, text="Item Name:", font=FONT_MAIN, bg=BG_COLOR).grid(row=0, column=0)
+        item_entry = tk.Entry(entry_frame, font=FONT_MAIN)
+        item_entry.grid(row=0, column=1)
+
+        tk.Label(entry_frame, text="Buy Price:", font=FONT_MAIN, bg=BG_COLOR).grid(row=1, column=0)
+        buy_entry = tk.Entry(entry_frame, font=FONT_MAIN)
+        buy_entry.grid(row=1, column=1)
+
+        tk.Label(entry_frame, text="Sell Price:", font=FONT_MAIN, bg=BG_COLOR).grid(row=2, column=0)
+        sell_entry = tk.Entry(entry_frame, font=FONT_MAIN)
+        sell_entry.grid(row=2, column=1)
+
+        def add_trade():
+            item = item_entry.get()
+            try:
+                buy = int(buy_entry.get())
+                sell = int(sell_entry.get())
+                profit = sell - buy
+                self.trade_history.append((item, buy, sell, profit))
+                update_output()
+                item_entry.delete(0, tk.END)
+                buy_entry.delete(0, tk.END)
+                sell_entry.delete(0, tk.END)
+            except ValueError:
+                messagebox.showerror("Invalid Input", "Please enter valid numbers for buy/sell.")
+
+        submit_btn = tk.Button(entry_frame, text="Add Trade", font=FONT_MAIN, bg=BTN_COLOR, command=add_trade)
+        submit_btn.grid(row=3, columnspan=2, pady=5)
+
+      
+        output = tk.Text(self.content_frame, height=15, width=70, font=FONT_MAIN, bg="white", fg="black")
+        output.pack(pady=10, padx=10)
+        def update_output():
+            output.delete(1.0, tk.END)
+            total_profit = sum(trade[3] for trade in self.trade_history)
+            for item, buy, sell, profit in self.trade_history:
+                output.insert(tk.END, f"{item} | Bought for {buy:,} | Sold for {sell:,} | Profit: {profit:,} gp\n")
+            output.insert(tk.END, f"\nTotal Profit: {total_profit:,} gp")
+
+        
         back_btn = tk.Button(
             self.content_frame, text="← Back", bg=SECONDARY, fg="white", font=FONT_MAIN,
             command=self.show_main_menu
         )
         back_btn.pack(pady=5)
-
-        output = tk.Text(self.content_frame, height=20, width=70, font=FONT_MAIN, bg="white", fg="black")
-        output.pack(pady=10, padx=10)
-
-        items_to_check = ["Runite bar", "Dragon dagger", "Zulrah's scales", "Amulet of glory", "Shark"]
-
-        for item in items_to_check:
-            item_id = fetch_item_id(item)
-            if not item_id:
-                output.insert(tk.END, f"{item}: not found\n")
-                continue
-
-            df = fetch_time_series(item_id)
-            if df is None or df.empty:
-                output.insert(tk.END, f"{item}: no price data\n")
-                continue
-
-            try:
-                df, model, x_scaler, y_scaler, _ = run_regression(df)
-                future_time = df['time_num'].max() + 3600
-                scaled_time = x_scaler.transform([[future_time]])
-                future_price = int(y_scaler.inverse_transform(model.predict(scaled_time))[0][0])
-            except:
-                future_price = "n/a"
-
-            # Live prices
-            try:
-                live = requests.get(f"{API_URL}/latest", headers=HEADERS).json()
-                live_data = live["data"].get(str(item_id), {})
-                buy_price = live_data.get("high", "?")
-                sell_price = live_data.get("low", "?")
-            except:
-                buy_price = sell_price = "?"
-
-            # Add to output
-            line = f"{item}: Buy {buy_price} | Sell {sell_price} | +1hr: {future_price} gp\n"
-            output.insert(tk.END, line)
 
     def favorites(self):
         self.main_frame.pack_forget()
