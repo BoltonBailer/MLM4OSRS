@@ -130,7 +130,9 @@ class OSRSDeckApp(tk.Tk):
         self.title("OSRS Deck")
         self.geometry("900x700")
         self.configure(bg=BG_COLOR)
-        self.view_stack = []
+        self.all_item_names = []
+        self.fetch_item_names()
+
 
         self.main_frame = tk.Frame(self, bg=BG_COLOR)
         self.main_frame.pack(fill="both", expand=True)
@@ -138,7 +140,7 @@ class OSRSDeckApp(tk.Tk):
         self.content_frame = tk.Frame(self, bg=BG_COLOR)
 
         buttons = [
-            ("Market predict", self.futures),
+            ("Market predict", self.market_predict),
             ("Top Grossing", self.top_gross_list),
             ("Favorites", self.favorites),
             ("Trade Diary", self.diary_trades),
@@ -185,6 +187,13 @@ class OSRSDeckApp(tk.Tk):
             self.favorite_items.append(item)
             self.render_favorite_items()
         self.fav_entry.delete(0, tk.END)
+
+    def fetch_item_names(self):
+        try:
+            response = requests.get(f"{API_URL}/mapping", headers=HEADERS)
+            self.all_item_names = sorted([item["name"] for item in response.json()])
+        except:
+            self.all_item_names = []
 
     def render_favorite_items(self):
             #clear it
@@ -234,37 +243,46 @@ class OSRSDeckApp(tk.Tk):
         text.pack(expand=True, fill="both", padx=10, pady=10)
         pretty_table = tabulate(df, headers="keys", tablefmt="plain", showindex=False)
         text.insert("end", pretty_table)
-
-    def futures(self):
+    #button 2
+    def market_predict(self):
         self.main_frame.pack_forget()
         for widget in self.content_frame.winfo_children():
             widget.destroy()
         self.content_frame.pack(fill="both", expand=True)
 
-        label = tk.Label(self.content_frame, text="Futures Predictor", font=FONT_HEADER, bg=BG_COLOR)
-        label.pack(pady=10)
+        tk.Label(self.content_frame, text="Item Price Predictor", font=FONT_HEADER, bg=BG_COLOR).pack(pady=10)
+
+        self.item_entry_var = tk.StringVar()
+        self.item_entry = ttk.Entry(self.content_frame, width=30, font=FONT_MAIN, textvariable=self.item_entry_var)
+        self.item_entry.pack()
+        self.item_entry.bind("<KeyRelease>", self.update_suggestions)
+
+        self.suggestion_box = tk.Listbox(self.content_frame, width=30, height=5, font=FONT_MAIN)
+        self.suggestion_box.pack()
+        self.suggestion_box.bind("<<ListboxSelect>>", self.select_suggestion)
+
+        predict_btn = tk.Button(
+            self.content_frame,
+            text="Predict",
+            bg=BTN_COLOR,
+            fg="white",
+            font=FONT_MAIN,
+            command=self.predict_price
+        )
+        predict_btn.pack(pady=5)
 
         back_btn = tk.Button(
             self.content_frame, text="← Back", bg=SECONDARY, fg="white", font=FONT_MAIN,
             command=self.show_main_menu
         )
         back_btn.pack()
-
-        self.item_entry = ttk.Entry(self.content_frame, width=30, font=FONT_MAIN)
-        self.item_entry.pack(pady=10)
-
-        predict_btn = tk.Button(
-            self.content_frame, text="Predict", bg=BTN_COLOR, fg="white", font=FONT_MAIN,
-            command=self.predict_price
-        )
-        predict_btn.pack(pady=5)
-
+        
         self.output_text = tk.Text(self.content_frame, height=10, width=80, bg="white", fg="black", font=FONT_MAIN)
         self.output_text.pack(pady=10)
 
         self.canvas_frame = tk.Frame(self.content_frame, bg=BG_COLOR)
         self.canvas_frame.pack(fill="both", expand=True)
-    #bttn 2
+
     def predict_price(self):
         item_name = self.item_entry.get().strip()
         item_id = fetch_item_id(item_name)
@@ -505,6 +523,20 @@ class OSRSDeckApp(tk.Tk):
             command=save_alert_settings
         )
         save_btn.pack(pady=15)
+
+    def update_suggestions(self, event):
+        typed = self.item_entry_var.get().lower()
+        matches = [name for name in self.all_item_names if typed in name.lower()][:10]
+
+        self.suggestion_box.delete(0, tk.END)
+        for name in matches:
+            self.suggestion_box.insert(tk.END, name)
+
+    def select_suggestion(self, event):
+        selected = self.suggestion_box.get(tk.ACTIVE)
+        self.item_entry_var.set(selected)
+        self.suggestion_box.delete(0, tk.END)
+
 
 
 
