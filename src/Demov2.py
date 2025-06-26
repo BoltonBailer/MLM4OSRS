@@ -139,12 +139,12 @@ class OSRSDeckApp(tk.Tk):
         self.content_frame = tk.Frame(self, bg=BG_COLOR)
 
         buttons = [
-            ("Top Grossing", self.items_list),
+            ("Market predict", self.futures),
+            ("Top Grossing", self.top_gross_list),
             ("Favorites", self.favorites),
-            ("Recent Trades", self.recent_trades),
-            ("Item Predict", self.futures),
-            ("Settings", self.price_watch),
-            ("Discord hook", self.alerts),
+            ("Trade Diary", self.diary_trades),
+            ("Discord hook", self.disc_hook),
+            ("Settings", self.settings_tile),
         ]
 
         grid_wrapper = tk.Frame(self.main_frame, bg=BG_COLOR)
@@ -206,8 +206,8 @@ class OSRSDeckApp(tk.Tk):
     def show_main_menu(self):
         self.content_frame.pack_forget()
         self.main_frame.pack(fill="both", expand=True)
-
-    def items_list(self):
+    #bttn 1
+    def top_gross_list(self):
         df = fetch_top_items()
 
         self.main_frame.pack_forget()
@@ -258,7 +258,7 @@ class OSRSDeckApp(tk.Tk):
 
         self.canvas_frame = tk.Frame(self.content_frame, bg=BG_COLOR)
         self.canvas_frame.pack(fill="both", expand=True)
-
+    #bttn 2
     def predict_price(self):
         item_name = self.item_entry.get().strip()
         item_id = fetch_item_id(item_name)
@@ -336,8 +336,8 @@ class OSRSDeckApp(tk.Tk):
         canvas = FigureCanvasTkAgg(fig, master=self.canvas_frame)
         canvas.draw()
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-
-    def recent_trades(self):
+    #bttn 3
+    def diary_trades(self):
         self.main_frame.pack_forget()
         for widget in self.content_frame.winfo_children():
             widget.destroy()
@@ -397,7 +397,7 @@ class OSRSDeckApp(tk.Tk):
             command=self.show_main_menu
         )
         back_btn.pack(pady=5)
-
+    #bttn 4
     def favorites(self):
         self.main_frame.pack_forget()
         for widget in self.content_frame.winfo_children():
@@ -436,11 +436,11 @@ class OSRSDeckApp(tk.Tk):
 
         #keep items in
         self.favorite_items = []
-
-    def price_watch(self):
+    #bttn 5
+    def settings_tile(self):
         print("demo test")
-
-    def alerts(self):
+    #bttn 6
+    def disc_hook(self):
         self.main_frame.pack_forget()
         for widget in self.content_frame.winfo_children():
             widget.destroy()
