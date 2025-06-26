@@ -213,7 +213,7 @@ class OSRSDeckApp(tk.Tk):
                 btn.pack(pady=3, padx=5, fill="x")
                 
     def launch_prediction_from_fav(self, item_name):
-            self.futures()
+            self.market_predict()
             self.item_entry.delete(0, tk.END)
             self.item_entry.insert(0, item_name)
             self.predict_price()
@@ -423,43 +423,43 @@ class OSRSDeckApp(tk.Tk):
         back_btn.pack(pady=5)
     #bttn 4
     def favorites(self):
-        self.main_frame.pack_forget()
-        for widget in self.content_frame.winfo_children():
-            widget.destroy()
-        self.content_frame.pack(fill="both", expand=True)
+            self.main_frame.pack_forget()
+            for widget in self.content_frame.winfo_children():
+                widget.destroy()
+            self.content_frame.pack(fill="both", expand=True)
 
-        label = tk.Label(self.content_frame, text="Favorites", font=FONT_HEADER, bg=BG_COLOR)
-        label.pack(pady=10)
+            label = tk.Label(self.content_frame, text="Favorites", font=FONT_HEADER, bg=BG_COLOR)
+            label.pack(pady=10)
 
-        back_btn = tk.Button(
-            self.content_frame, text="← Back", bg=SECONDARY, fg="white", font=FONT_MAIN,
-            command=self.show_main_menu
-        )
-        back_btn.pack(pady=5)
+            back_btn = tk.Button(
+                self.content_frame, text="← Back", bg=SECONDARY, fg="white", font=FONT_MAIN,
+                command=self.show_main_menu
+            )
+            back_btn.pack(pady=5)
 
-        #box
-        tk.Label(self.content_frame, text="Add Item to Favorites:", font=FONT_MAIN, bg=BG_COLOR).pack(pady=(10, 5))
-        self.fav_entry = ttk.Entry(self.content_frame, width=30)
-        self.fav_entry.pack()
-        self.fav_entry.bind("<Return>", lambda event: self.add_favorite_item())
+            #box
+            tk.Label(self.content_frame, text="Add Item to Favorites:", font=FONT_MAIN, bg=BG_COLOR).pack(pady=(10, 5))
+            self.fav_entry = ttk.Entry(self.content_frame, width=30)
+            self.fav_entry.pack()
+            self.fav_entry.bind("<Return>", lambda event: self.add_favorite_item())
 
 
-        add_btn = tk.Button(
-            self.content_frame,
-            text="Add",
-            bg=BTN_COLOR,
-            fg="white",
-            font=FONT_MAIN,
-            command=self.add_favorite_item
-        )
-        add_btn.pack(pady=5)
+            add_btn = tk.Button(
+                self.content_frame,
+                text="Add",
+                bg=BTN_COLOR,
+                fg="white",
+                font=FONT_MAIN,
+                command=self.add_favorite_item
+            )
+            add_btn.pack(pady=5)
 
-        
-        self.fav_list_frame = tk.Frame(self.content_frame, bg=BG_COLOR)
-        self.fav_list_frame.pack(pady=10)
+            
+            self.fav_list_frame = tk.Frame(self.content_frame, bg=BG_COLOR)
+            self.fav_list_frame.pack(pady=10)
 
-        #keep items in
-        self.favorite_items = []
+            #keep items in
+            self.favorite_items = []
     #bttn 5
     def settings_tile(self):
         print("demo test")
