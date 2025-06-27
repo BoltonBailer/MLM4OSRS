@@ -15,6 +15,9 @@ import json
 import os
 from PIL import Image, ImageTk
 import pygame
+from urllib.request import urlopen
+from io import BytesIO
+import datetime
 
 
 BG_COLOR = "#ffffff"
@@ -108,7 +111,8 @@ def fetch_top_items():
                     "Sell": high,
                     "Margin": margin,
                     "Volume": volume,
-                    "Profit": profit
+                    "Profit": profit,
+                    "Icon": item.get("icon")
                 })
 
     df = pd.DataFrame(item_list)
@@ -158,9 +162,9 @@ class OSRSDeckApp(tk.Tk):
 
         self.content_frame = tk.Frame(self, bg=BG_COLOR)
 
-        pygame.mixer.init()
-        pygame.mixer.music.load(self.config["background_music"])
-        pygame.mixer.music.play()
+        # pygame.mixer.init()
+        # pygame.mixer.music.load(self.config["background_music"])
+        # pygame.mixer.music.play()
 
 
         #bk_music.mp3
@@ -255,7 +259,6 @@ class OSRSDeckApp(tk.Tk):
             )
             remove_btn.pack(side="right", padx=4)
 
-    
     def remove_favorite_item(self, item):
         if item in self.favorite_items:
             self.favorite_items.remove(item)
@@ -273,7 +276,7 @@ class OSRSDeckApp(tk.Tk):
         self.main_frame.pack(fill="both", expand=True)
     #bttn 1
     def top_gross_list(self):
-        df = fetch_top_items()
+        df = fetch_top_items()  # Get top 15 item DataFrame
 
         self.main_frame.pack_forget()
         for widget in self.content_frame.winfo_children():
@@ -284,15 +287,39 @@ class OSRSDeckApp(tk.Tk):
         label.pack(pady=10)
 
         back_btn = tk.Button(
-            self.content_frame, text="← Back", bg=SECONDARY, fg="white", font=FONT_MAIN,
+            self.content_frame,
+            text="← Back",
+            bg=SECONDARY,
+            fg="black",
+            font=FONT_MAIN,
             command=self.show_main_menu
         )
         back_btn.pack(pady=5)
 
-        text = tk.Text(self.content_frame, wrap="none", font=("Courier", 9), bg="white", fg="black")
-        text.pack(expand=True, fill="both", padx=10, pady=10)
-        pretty_table = tabulate(df, headers="keys", tablefmt="plain", showindex=False)
-        text.insert("end", pretty_table)
+        frame = tk.Frame(self.content_frame, bg=BG_COLOR)
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        for index, row in df.iterrows():
+            item_name = row["Name"]
+
+            item_frame = tk.Frame(frame, bg=BG_COLOR)
+            item_frame.pack(fill="x", pady=2)
+
+            text = f"{item_name} | Buy: {row['Buy']} | Sell: {row['Sell']} | Margin: {row['Margin']} | Volume: {row['Volume']} | Profit: {row['Profit']}"
+
+            btn = tk.Button(
+                item_frame,
+                text=text,
+                anchor="w",
+                justify="left",
+                font=("Courier", 9),
+                bg=SECONDARY,
+                fg="black",
+                wraplength=800,
+                relief="groove",
+                command=lambda i=item_name: self.launch_prediction_from_fav(i)
+            )
+            btn.pack(side="left", fill="x", expand=True)
     #button 2
     def market_predict(self):
 
@@ -439,7 +466,6 @@ class OSRSDeckApp(tk.Tk):
         label = tk.Label(self.content_frame, text="Recent Trades", font=FONT_HEADER, bg=BG_COLOR)
         label.pack(pady=10)
 
-        # Input Fields
         entry_frame = tk.Frame(self.content_frame, bg=BG_COLOR)
         entry_frame.pack(pady=5)
 
@@ -455,6 +481,12 @@ class OSRSDeckApp(tk.Tk):
         sell_entry = tk.Entry(entry_frame, font=FONT_MAIN)
         sell_entry.grid(row=2, column=1)
 
+        def save_trades():
+            today = datetime.datetime.now().strftime("%Y-%m-%d")
+            filename = f"trades_{today}.json"
+            with open(filename, "w") as f:
+                json.dump(self.trade_history, f)
+
         def add_trade():
             item = item_entry.get()
             try:
@@ -462,7 +494,7 @@ class OSRSDeckApp(tk.Tk):
                 sell = int(sell_entry.get())
                 profit = sell - buy
                 self.trade_history.append((item, buy, sell, profit))
-                self.save_trades()
+                save_trades()
                 update_output()
                 item_entry.delete(0, tk.END)
                 buy_entry.delete(0, tk.END)
@@ -473,23 +505,62 @@ class OSRSDeckApp(tk.Tk):
         submit_btn = tk.Button(entry_frame, text="Add Trade", font=FONT_MAIN, bg=BTN_COLOR, command=add_trade)
         submit_btn.grid(row=3, columnspan=2, pady=5)
 
-      
-        output = tk.Text(self.content_frame, height=15, width=70, font=FONT_MAIN, bg="white", fg="black")
-        output.pack(pady=10, padx=10)
-        def update_output():
-            output.delete(1.0, tk.END)
-            total_profit = sum(trade[3] for trade in self.trade_history)
-            for item, buy, sell, profit in self.trade_history:
-                output.insert(tk.END, f"{item} | Bought for {buy:,} | Sold for {sell:,} | Profit: {profit:,} gp\n")
-            output.insert(tk.END, f"\nTotal Profit: {total_profit:,} gp")
-        
-        update_output()
-
         back_btn = tk.Button(
             self.content_frame, text="← Back", bg=SECONDARY, fg="white", font=FONT_MAIN,
             command=self.show_main_menu
         )
         back_btn.pack(pady=5)
+
+        
+        output_frame = tk.Frame(self.content_frame, bg=BG_COLOR)
+        output_frame.pack(pady=10, padx=10)
+
+        def delete_trade(index):
+            if 0 <= index < len(self.trade_history):
+                del self.trade_history[index]
+                save_trades()
+                update_output()
+
+        def update_output():
+            for widget in output_frame.winfo_children():
+                widget.destroy()
+
+            total_profit = sum(trade[3] for trade in self.trade_history)
+
+            for i, (item, buy, sell, profit) in enumerate(self.trade_history):
+                trade_row = tk.Frame(output_frame, bg="white")
+                trade_row.pack(fill="x", pady=2)
+
+                trade_label = tk.Label(
+                    trade_row,
+                    text=f"{item} | Bought for {buy:,} | Sold for {sell:,} | Profit: {profit:,} gp",
+                    font=FONT_MAIN,
+                    anchor="w",
+                    bg="white",
+                    fg="black"
+                )
+                trade_label.pack(side="left", fill="x", expand=True)
+
+                del_btn = tk.Button(
+                    trade_row,
+                    text="🗑️",
+                    bg="#ff6961",
+                    fg="white",
+                    font=FONT_MAIN,
+                    command=lambda index=i: delete_trade(index)
+                )
+                del_btn.pack(side="right", padx=5)
+
+            profit_label = tk.Label(
+                output_frame,
+                text=f"\nTotal Profit: {total_profit:,} gp",
+                font=FONT_MAIN,
+                bg=BG_COLOR,
+                fg="black"
+            )
+            profit_label.pack()
+
+        update_output()
     #bttn 4
     def favorites(self):
             self.main_frame.pack_forget()
@@ -564,7 +635,6 @@ class OSRSDeckApp(tk.Tk):
             command=toggle_music
         )
         toggle_btn.pack(pady=20)
-
     #bttn 6
     def disc_hook(self):
 
@@ -659,10 +729,6 @@ class OSRSDeckApp(tk.Tk):
             with open(self.trade_file, "r") as f:
                 return json.load(f)
         return []
-
-    def save_trades(self):
-        with open(self.trade_file, "w") as f:
-            json.dump(self.trade_history, f)
 
     def load_webhook_settings(self):
         if os.path.exists(self.webhook_settings_file):
