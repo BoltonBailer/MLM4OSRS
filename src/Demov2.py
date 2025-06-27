@@ -139,13 +139,16 @@ class OSRSDeckApp(tk.Tk):
         self.trade_file = "trades.json"
         self.favorite_items = self.load_favorites()
         self.trade_history = self.load_trades()
-
+        self.webhook_settings_file = "webhook_settings.json"
+        self.webhook_url, self.alerts_on = self.load_webhook_settings()
 
 
         self.main_frame = tk.Frame(self, bg=BG_COLOR)
         self.main_frame.pack(fill="both", expand=True)
 
         self.content_frame = tk.Frame(self, bg=BG_COLOR)
+
+
 
         buttons = [
             ("Market predict", self.market_predict),
@@ -254,6 +257,7 @@ class OSRSDeckApp(tk.Tk):
         text.insert("end", pretty_table)
     #button 2
     def market_predict(self):
+
         self.main_frame.pack_forget()
         for widget in self.content_frame.winfo_children():
             widget.destroy()
@@ -285,12 +289,23 @@ class OSRSDeckApp(tk.Tk):
             command=self.show_main_menu
         )
         back_btn.pack()
+        self.discord_btn = tk.Button(
+            self.content_frame,
+            text="Send to Discord",
+            bg=BTN_COLOR,
+            fg="white",
+            font=FONT_MAIN,
+            command=self.send_to_discord
+        )
+        self.discord_btn.pack(pady=5)
         
         self.output_text = tk.Text(self.content_frame, height=10, width=80, bg="white", fg="black", font=FONT_MAIN)
         self.output_text.pack(pady=10)
 
         self.canvas_frame = tk.Frame(self.content_frame, bg=BG_COLOR)
         self.canvas_frame.pack(fill="both", expand=True)
+
+
 
     def predict_price(self):
         item_name = self.item_entry.get().strip()
@@ -348,6 +363,13 @@ class OSRSDeckApp(tk.Tk):
             self.output_text.insert(tk.END, f"⏱ In {hour}h → ~{price} gp\n")
 
         self.plot_data(df, item_name)
+
+        self.last_prediction_data = {
+            "item": item_name,
+            "buy": buy_price,
+            "sell": future_forecasts[1],
+            "profit": est_profit if buy_price else None
+        }
 
     def plot_data(self, df, item_name):
         for widget in self.canvas_frame.winfo_children():
@@ -476,6 +498,7 @@ class OSRSDeckApp(tk.Tk):
         print("demo test")
     #bttn 6
     def disc_hook(self):
+
         self.main_frame.pack_forget()
         for widget in self.content_frame.winfo_children():
             widget.destroy()
@@ -492,12 +515,12 @@ class OSRSDeckApp(tk.Tk):
 
         # webhook bar
         tk.Label(self.content_frame, text="Enter Discord Webhook URL:", bg=BG_COLOR, font=FONT_MAIN).pack(pady=(20, 5))
-        self.webhook_var = tk.StringVar()
+        self.webhook_var = tk.StringVar(value=self.webhook_url)
         self.webhook_entry = ttk.Entry(self.content_frame, textvariable=self.webhook_var, width=60)
         self.webhook_entry.pack()
 
         # toggle
-        self.alerts_enabled = tk.BooleanVar(value=False)
+        self.alerts_enabled = tk.BooleanVar(value=self.alerts_on)
 
         def toggle_alerts():
             state = self.alerts_enabled.get()
@@ -523,8 +546,12 @@ class OSRSDeckApp(tk.Tk):
         def save_alert_settings():
             url = self.webhook_var.get()
             enabled = self.alerts_enabled.get()
+            self.save_webhook_settings(url, enabled)
+            self.webhook_url = url
+            self.alerts_on = enabled
             print(f"Saved Webhook: {url}")
             print(f"Alerts {'ON' if enabled else 'OFF'}")
+
         save_btn = tk.Button(
             self.content_frame,
             text="Save Settings",
@@ -568,8 +595,41 @@ class OSRSDeckApp(tk.Tk):
         with open(self.trade_file, "w") as f:
             json.dump(self.trade_history, f)
 
+    def load_webhook_settings(self):
+        if os.path.exists(self.webhook_settings_file):
+            with open(self.webhook_settings_file, "r") as f:
+                data = json.load(f)
+                return data.get("url", ""), data.get("enabled", False)
+        return "", False
 
+    def save_webhook_settings(self, url, enabled):
+        with open(self.webhook_settings_file, "w") as f:
+            json.dump({"url": url, "enabled": enabled}, f)
 
+    def send_to_discord(self):
+        if not hasattr(self, "last_prediction_data"):
+            messagebox.showwarning("No Prediction", "Please run a prediction first.")
+            return
+
+        if not self.alerts_on or not self.webhook_url:
+            messagebox.showwarning("Alerts Disabled", "Enable alerts and set webhook URL.")
+            return
+
+        data = self.last_prediction_data
+        message = {
+            "content": f"📊 `{data['item']}` Prediction:\nBuy: {data['buy']:,} gp\nSell: {data['sell']:,} gp\nProfit: {data['profit']:,} gp"
+        }
+
+        try:
+            response = requests.post(self.webhook_url, json=message)
+            if response.status_code == 204:
+                messagebox.showinfo("Success", "Prediction sent to Discord.")
+            else:
+                messagebox.showerror("Error", f"Failed to send (HTTP {response.status_code})")
+        except Exception as e:
+            messagebox.showerror("Exception", f"Something went wrong:\n{e}")
+
+    
 
 
 if __name__ == "__main__":
