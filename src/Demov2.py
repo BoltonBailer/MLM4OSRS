@@ -13,8 +13,8 @@ from tensorflow.keras.layers import Dense, Input
 from tabulate import tabulate
 import json
 import os
-
-
+from PIL import Image, ImageTk
+import pygame
 
 
 BG_COLOR = "#ffffff"
@@ -135,19 +135,35 @@ class OSRSDeckApp(tk.Tk):
         self.configure(bg=BG_COLOR)
         self.all_item_names = []
         self.fetch_item_names()
+        #savefiles
         self.fav_file = "favorites.json"
         self.trade_file = "trades.json"
         self.favorite_items = self.load_favorites()
         self.trade_history = self.load_trades()
+        #webhook stuff
         self.webhook_settings_file = "webhook_settings.json"
         self.webhook_url, self.alerts_on = self.load_webhook_settings()
+        #json config
+        with open("config.json", "r") as f:
+            self.config = json.load(f)
 
-
-        self.main_frame = tk.Frame(self, bg=BG_COLOR)
+        #background pic
+        bg_image = Image.open(self.config["background_image"])
+        bg_image = bg_image.resize((900, 700), Image.LANCZOS)
+        self.bg_photo = ImageTk.PhotoImage(bg_image)
+        self.main_frame = tk.Frame(self, width=900, height=700)
         self.main_frame.pack(fill="both", expand=True)
+        self.bg_label = tk.Label(self.main_frame, image=self.bg_photo)
+        self.bg_label.place(x=0, y=0, relwidth=1, relheight=1)
 
         self.content_frame = tk.Frame(self, bg=BG_COLOR)
 
+        pygame.mixer.init()
+        pygame.mixer.music.load(self.config["background_music"])
+        pygame.mixer.music.play()
+
+
+        #bk_music.mp3
 
 
         buttons = [
@@ -159,11 +175,12 @@ class OSRSDeckApp(tk.Tk):
             ("Settings", self.settings_tile),
         ]
 
-        grid_wrapper = tk.Frame(self.main_frame, bg=BG_COLOR)
-        grid_wrapper.pack(expand=True)
+        grid_wrapper = tk.Frame(self.main_frame, bg="", highlightthickness=0)
+        grid_wrapper.place(relx=0.5, rely=0.5, anchor="center")
+
 
         for i, (label, command) in enumerate(buttons):
-            wrapper = tk.Frame(grid_wrapper, bg="#d0cbe9", bd=0)  # soft shadow background
+            wrapper = tk.Frame(grid_wrapper, bg="#d0cbe9", bd=0)
             wrapper.grid(row=i // 3, column=i % 3, padx=15, pady=15)
 
             btn = tk.Button(
