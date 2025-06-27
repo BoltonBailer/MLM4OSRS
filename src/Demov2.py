@@ -225,21 +225,42 @@ class OSRSDeckApp(tk.Tk):
             self.all_item_names = []
 
     def render_favorite_items(self):
-            #clear it
-            for widget in self.fav_list_frame.winfo_children():
-                widget.destroy()
+        for widget in self.fav_list_frame.winfo_children():
+            widget.destroy()
 
-            for item in self.favorite_items:
-                btn = tk.Button(
-                    self.fav_list_frame,
-                    text=item,
-                    font=FONT_MAIN,
-                    bg=SECONDARY,
-                    fg="white",
-                    relief="groove",
-                    command=lambda i=item: self.launch_prediction_from_fav(i)
-                )
-                btn.pack(pady=3, padx=5, fill="x")
+        for item in self.favorite_items:
+            container = tk.Frame(self.fav_list_frame, bg=BG_COLOR)
+            container.pack(fill="x", padx=5, pady=3)
+
+            name_btn = tk.Button(
+                container,
+                text=item,
+                font=FONT_MAIN,
+                bg=SECONDARY,
+                fg="white",
+                relief="groove",
+                command=lambda i=item: self.launch_prediction_from_fav(i)
+            )
+            name_btn.pack(side="left", fill="x", expand=True)
+
+            remove_btn = tk.Button(
+                container,
+                text="❌",
+                font=("Segoe UI", 10, "bold"),
+                bg="#ff6b6b",
+                fg="white",
+                relief="flat",
+                width=3,
+                command=lambda i=item: self.remove_favorite_item(i)
+            )
+            remove_btn.pack(side="right", padx=4)
+
+    
+    def remove_favorite_item(self, item):
+        if item in self.favorite_items:
+            self.favorite_items.remove(item)
+            self.save_favorites()
+            self.render_favorite_items()
                 
     def launch_prediction_from_fav(self, item_name):
             self.market_predict()
@@ -321,8 +342,6 @@ class OSRSDeckApp(tk.Tk):
 
         self.canvas_frame = tk.Frame(self.content_frame, bg=BG_COLOR)
         self.canvas_frame.pack(fill="both", expand=True)
-
-
 
     def predict_price(self):
         item_name = self.item_entry.get().strip()
@@ -512,7 +531,40 @@ class OSRSDeckApp(tk.Tk):
             self.render_favorite_items() 
     #bttn 5
     def settings_tile(self):
-        print("demo test")
+        self.main_frame.pack_forget()
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+        self.content_frame.pack(fill="both", expand=True)
+
+        tk.Label(self.content_frame, text="Settings", font=FONT_HEADER, bg=BG_COLOR).pack(pady=10)
+
+        back_btn = tk.Button(
+            self.content_frame, text="← Back", bg=SECONDARY, fg="white", font=FONT_MAIN,
+            command=self.show_main_menu
+        )
+        back_btn.pack(pady=5)
+
+        # Music toggle state
+        self.music_playing = pygame.mixer.music.get_busy()
+
+        def toggle_music():
+            if pygame.mixer.music.get_busy():
+                pygame.mixer.music.pause()
+                toggle_btn.config(text="▶️ Turn Music On")
+            else:
+                pygame.mixer.music.unpause()
+                toggle_btn.config(text="🔇 Turn Music Off")
+
+        toggle_btn = tk.Button(
+            self.content_frame,
+            text="🔇 Turn Music Off" if self.music_playing else "▶️ Turn Music On",
+            bg=BTN_COLOR,
+            fg="white",
+            font=FONT_MAIN,
+            command=toggle_music
+        )
+        toggle_btn.pack(pady=20)
+
     #bttn 6
     def disc_hook(self):
 
