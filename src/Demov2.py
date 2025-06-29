@@ -15,8 +15,6 @@ import json
 import os
 from PIL import Image, ImageTk
 import pygame
-from urllib.request import urlopen
-from io import BytesIO
 import datetime
 
 
@@ -162,9 +160,9 @@ class OSRSDeckApp(tk.Tk):
 
         self.content_frame = tk.Frame(self, bg=BG_COLOR)
 
-        # pygame.mixer.init()
-        # pygame.mixer.music.load(self.config["background_music"])
-        # pygame.mixer.music.play()
+        pygame.mixer.init()
+        pygame.mixer.music.load(self.config["background_music"])
+        pygame.mixer.music.play()
 
 
         #bk_music.mp3
